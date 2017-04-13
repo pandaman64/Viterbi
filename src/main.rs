@@ -12,15 +12,15 @@ impl Arena{
 #[derive(Debug)]
 struct Node{
     id: usize,
-    end: usize,
+    start: usize,
     cost: usize,
     prev: Option<usize>,
     text: String,
 }
 
 impl Node{
-    fn new(arena: &mut Arena,end: usize,cost: usize,prev: Option<usize>,text: String) -> Self{
-        let ret = Node{ id: arena.next_id,end: end,cost: cost,prev: prev,text: text };
+    fn new(arena: &mut Arena,start: usize,cost: usize,prev: Option<usize>,text: String) -> Self{
+        let ret = Node{ id: arena.next_id,start: start,cost: cost,prev: prev,text: text };
         arena.next_id += 1;
         ret
     }
@@ -36,30 +36,33 @@ fn viterbi(morphemes: &Vec<Morpheme>,input: &str) -> String{
     let input = input.chars().collect::<Vec<_>>();
 
     let mut arena = Arena::new();
-    let mut nodes = vec![];
+    let mut nodes = Vec::with_capacity(input.len());
 
-    nodes.push(Node::new(&mut arena,0,0,None,"start".into()));
+    for _ in 0..(input.len() + 1){
+        nodes.push(vec![]);
+    }
+
+    nodes[0].push(Node::new(&mut arena,0,0,None,"start".into()));
 
     for i in 0..input.len(){
-        let mut new_nodes = vec![];
         for ref morpheme in morphemes.iter().filter(|&morpheme| morpheme.yomi[0] == input[i]){
-            let mut node = Node::new(&mut arena,i + morpheme.yomi.len(),std::usize::MAX,None,morpheme.text.clone());
-            for prev in nodes.iter().filter(|&node| node.end == i){
+            let end = i + morpheme.yomi.len();
+            let mut node = Node::new(&mut arena,i,std::usize::MAX,None,morpheme.text.clone());
+            for prev in nodes[i].iter(){
                 if prev.cost + morpheme.cost < node.cost{
                     node.cost = prev.cost + morpheme.cost;
                     node.prev = Some(prev.id);
                 }
             }
-            if node.prev.is_some(){
-                new_nodes.push(node);
+            if node.prev.is_some() && end < nodes.len(){
+                nodes[end].push(node);
             }
         }
-        nodes.append(&mut new_nodes);
     }
 
     let mut last_id = None;
     let mut cost = std::usize::MAX;
-    for last in nodes.iter().filter(|&node| node.end == input.len()){
+    for last in nodes[input.len()].iter(){
         if last.cost < cost{
             last_id = Some(last.id);
             cost = last.cost;
@@ -71,11 +74,13 @@ fn viterbi(morphemes: &Vec<Morpheme>,input: &str) -> String{
     match last_id{
         None => panic!("単語分割に失敗"),
         Some(mut id) => {
+            let mut at = input.len();
             let mut ret = "".into();
             while id != 0{
-                let node = nodes.iter().filter(|&node| node.id == id).next().unwrap();
+                let node = nodes[at].iter().filter(|&node| node.id == id).next().unwrap();
                 ret = format!("{} {}",node.text,ret);
                 id = node.prev.unwrap();
+                at = node.start;
             }
             ret
         }
