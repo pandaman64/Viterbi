@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug)]
 struct Arena{
     next_id: usize
@@ -33,6 +35,13 @@ struct Morpheme{
 }
 
 fn viterbi(morphemes: &Vec<Morpheme>,input: &str) -> String{
+    let morphemes = {
+        let mut v = HashMap::new();
+        for morpheme in morphemes.iter(){
+            v.entry(morpheme.yomi[0]).or_insert(vec![]).push(morpheme);
+        }
+        v
+    };
     let input = input.chars().collect::<Vec<_>>();
 
     let mut arena = Arena::new();
@@ -45,17 +54,19 @@ fn viterbi(morphemes: &Vec<Morpheme>,input: &str) -> String{
     nodes[0].push(Node::new(&mut arena,0,0,None,"start".into()));
 
     for i in 0..input.len(){
-        for ref morpheme in morphemes.iter().filter(|&morpheme| morpheme.yomi[0] == input[i]){
-            let end = i + morpheme.yomi.len();
-            let mut node = Node::new(&mut arena,i,std::usize::MAX,None,morpheme.text.clone());
-            for prev in nodes[i].iter(){
-                if prev.cost + morpheme.cost < node.cost{
-                    node.cost = prev.cost + morpheme.cost;
-                    node.prev = Some(prev.id);
+        if let Some(morphemes) = morphemes.get(&input[i]){
+            for ref morpheme in morphemes.iter(){
+                let end = i + morpheme.yomi.len();
+                let mut node = Node::new(&mut arena,i,std::usize::MAX,None,morpheme.text.clone());
+                for prev in nodes[i].iter(){
+                    if prev.cost + morpheme.cost < node.cost{
+                        node.cost = prev.cost + morpheme.cost;
+                        node.prev = Some(prev.id);
+                    }
                 }
-            }
-            if node.prev.is_some() && end < nodes.len(){
-                nodes[end].push(node);
+                if node.prev.is_some() && end < nodes.len(){
+                    nodes[end].push(node);
+                }
             }
         }
     }
